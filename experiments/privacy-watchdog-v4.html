@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adaptive Privacy Watchdog V4</title>
+<style>
+body { font-family: system-ui,sans-serif; padding:24px; background:white; color:#222; }
+#privacy { position:fixed; inset:0; z-index:99999; background:#111; color:white; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; will-change:transform; transform:translate3d(0,0,0); backface-visibility:hidden; }
+@keyframes watchdog { from { transform:translate3d(0,110%,0); } to { transform:translate3d(0,0,0); } }
+.heartbeat { animation:watchdog var(--watchdog-timeout,500ms) steps(1,end) forwards; }
+#css-probe { width:40px; height:40px; background:#00c853; border-radius:8px; will-change:transform; animation:spin 1s linear infinite; }
+@keyframes spin { from {transform:rotate(0deg)} to {transform:rotate(360deg)} }
+button { padding:14px 20px; font-size:16px; margin:8px 0; border-radius:8px; cursor:pointer; }
+label { display:block; margin:12px 0; }
+</style>
+</head>
+<body>
+<h1>Privacy PoC V4</h1>
+<h2>Confidential: $25,000</h2>
+<p>CSS animation probe:</p><div id="css-probe"></div>
+<p id="counter">JS frames: 0</p><p id="status">Ready</p>
+<label><input type="checkbox" id="lifecycle"> Enable lifecycle detection</label>
+<label><input type="checkbox" id="gapLock"> Enable JS comeback lock</label>
+<button onclick="stopHeartbeat()">Stop JS heartbeat</button>
+<div id="privacy"><h1>🔒 Privacy Screen</h1><p id="reason">Calibrating device...</p><button onclick="reset()">Reset / Unlock</button></div>
+<script>
+const mask = document.getElementById('privacy');
+const counter = document.getElementById('counter');
+const status = document.getElementById('status');
+const reason = document.getElementById('reason');
+const lifecycle = document.getElementById('lifecycle');
+const gapLock = document.getElementById('gapLock');
+const MIN_TIMEOUT = 100, MAX_TIMEOUT = 1000, SAFETY_FACTOR = 3;
+const SAMPLE_SIZE = 60, CALIBRATION_SAMPLES = 30;
+let timeout = 500, samples = [], lastBeat = null, locked = true, calibrating = true, frames = 0;
+function calculateTimeout() {
+  const sorted = [...samples].sort((a,b)=>a-b);
+  const p95 = sorted[Math.ceil(sorted.length*.95)-1];
+  timeout = Math.min(MAX_TIMEOUT,Math.max(MIN_TIMEOUT,Math.ceil(p95*SAFETY_FACTOR)));
+  return p95;
+}
+function restartAnimation() {
+  mask.style.setProperty('--watchdog-timeout',timeout+'ms');
+  mask.classList.remove('heartbeat');
+  void mask.offsetWidth;
+  mask.classList.add('heartbeat');
+}
+function lock(message) {
+  locked=true; calibrating=false;
+  mask.classList.remove('heartbeat');
+  reason.textContent=message;
+}
+function stopHeartbeat() { locked=true; calibrating=false; }
+function reset() {
+  locked=true; calibrating=true; samples=[]; lastBeat=null; timeout=500;
+  mask.classList.remove('heartbeat');
+  reason.textContent='Calibrating device...';
+}
+function tick(now) {
+  requestAnimationFrame(tick);
+  frames++;
+  counter.textContent='JS frames: '+frames;
+  const gap=lastBeat===null?0:now-lastBeat;
+  lastBeat=now;
+  if(calibrating) {
+    if(document.hidden) {samples=[];return;}
+    if(gap>0 && gap<MAX_TIMEOUT) samples.push(gap);
+    else if(gap>=MAX_TIMEOUT) samples=[];
+    reason.textContent='Calibrating: '+samples.length+'/'+CALIBRATION_SAMPLES;
+    if(samples.length>=CALIBRATION_SAMPLES) {
+      calculateTimeout(); calibrating=false; locked=false;
+      reason.textContent='CSS watchdog expired'; restartAnimation();
+    }
+    return;
+  }
+  if(locked) return;
+  if(gap>=timeout) {
+    if(gapLock.checked) lock('Execution interrupted: '+gap.toFixed(0)+'ms');
+    else locked=true;
+    return;
+  }
+  if(!document.hidden && gap>0) {
+    samples.push(gap); if(samples.length>SAMPLE_SIZE) samples.shift();
+    calculateTimeout();
+  }
+  status.textContent='Frame gap: '+gap.toFixed(1)+'ms | Timeout: '+timeout+'ms';
+  restartAnimation();
+}
+document.addEventListener('visibilitychange',()=>{if(lifecycle.checked && document.hidden) lock('Visibility changed');});
+window.addEventListener('pagehide',()=>{if(lifecycle.checked) lock('Page hidden');});
+reset(); requestAnimationFrame(tick);
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Method B – Visibility API</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:#151515;color:white}#private{position:fixed;inset:0;background:white;color:#222;padding:24px;opacity:1;will-change:opacity}body.locked #private{opacity:0;pointer-events:none}#shield{position:fixed;inset:0;display:grid;place-content:center;text-align:center;padding:24px}button{padding:14px 20px;font-size:16px;border:1px solid #aaa;border-radius:8px;cursor:pointer}#events{white-space:pre-wrap;font-size:12px;overflow:auto;max-height:160px}
+</style></head><body class="locked">
+<div id="shield"><h1>🔒 Privacy Screen</h1><p id="reason">Locked</p><button id="reset">Reset / Unlock</button></div>
+<main id="private" inert><h2>Method B – Visibility API</h2><p>Confidential account balance</p><h1>$25,000</h1><p id="state"></p><button id="test">Test mask</button><h3>Event log</h3><pre id="events"></pre></main>
+<script>
+const $=id=>document.getElementById(id);let events=[];
+function log(s){events.unshift(new Date().toISOString()+' '+s);$('events').textContent=events.slice(0,30).join('\n');$('state').textContent='Visibility: '+document.visibilityState;}
+function lock(s){document.body.classList.add('locked');$('private').inert=true;$('reason').textContent=s;}
+function unlock(){if(document.hidden)return;document.body.classList.remove('locked');$('private').inert=false;}
+document.addEventListener('visibilitychange',()=>{log('visibilitychange: '+document.visibilityState);if(document.hidden)lock('Page became hidden');});
+$('reset').onclick=unlock;$('test').onclick=()=>lock('Manual test');log('Page loaded');unlock();
+</script></body></html>
